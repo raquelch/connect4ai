@@ -182,7 +182,7 @@ namespace fourInARow
                         return playerToCheck;
                 }
             }
-            //left diagonal (\)
+            //left diagonal (such as the slash (\))
             for (int row = 0; row < this.board.GetLength(0) - 3; row++)
             {
                 for (int col = 0; col < this.board.GetLength(1) - 3; col++)
@@ -191,7 +191,7 @@ namespace fourInARow
                         return playerToCheck;
                 }
             }
-            //right diagonal (/)
+            //right diagonal (such as the slash (/))
             for (int row = 0; row < this.board.GetLength(0) - 3; row++)
             {
                 for (int col = 3; col < this.board.GetLength(1); col++)
