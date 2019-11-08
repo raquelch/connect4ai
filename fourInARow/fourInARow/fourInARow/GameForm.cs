@@ -1,0 +1,668 @@
+﻿
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Diagnostics;
+using System.Drawing;
+using System.Linq;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+
+namespace fourInARow
+{
+    public partial class GameForm : Form
+    {
+        Random rnd = new Random();
+        private Rectangle[] boardColumns;
+        public const int width = 7;
+        public const int height = 6;
+        private int[,] board;
+        private int turn;
+        private int level = 4;
+        private int mode = 1;
+        private int element = 0;
+        public int aiColumn;
+        GameBoard GameBoard = new GameBoard();
+
+        public GameForm()
+        {
+            InitializeComponent();
+            this.boardColumns = new Rectangle[7];
+            this.board = new int[6, 7];
+            this.turn = 1;
+        }
+
+        private void GameForm_Paint(object sender, PaintEventArgs e)
+        {
+            e.Graphics.FillRectangle(Brushes.Blue, 24, 24, 340, 300);
+            for (int i = 0; i < 6; i++)
+            {
+                for (int j = 0; j < 7; j++)
+                {
+                    if (i == 0) this.boardColumns[j] = new Rectangle(32 + 48 * j, 24, 40, 300);
+                    e.Graphics.FillEllipse(Brushes.DarkGray, 32 + 48 * j, 32 + 48 * i, 32, 32);
+                }
+            }
+        }
+
+        private void GameForm_MouseClick(object sender, MouseEventArgs e)
+        {
+            int columnIndex = this.ColumnNumber(e.Location);
+            if (columnIndex >= 0 && columnIndex <= 6)
+            {
+                if (mode == 0)
+                    playerMove(columnIndex);
+                else
+                {
+                    playerMove(columnIndex);
+                    AlgoMove(turn);
+                }
+            }
+        }
+
+        private void playerMove(int columnIndex)
+        {
+            int rowIndex = EmptyRow(columnIndex);
+            if (rowIndex != -1)
+            {
+                //this.board[rowIndex, columnIndex] = this.turn;
+                GameBoard.DropPiece(columnIndex, board, turn);
+                MovePainter(rowIndex, columnIndex, turn);
+                displayLastMove(turn, columnIndex);
+                
+                turnSelector(turn);
+            }
+        }
+
+        public void AlgoMove(int turn)
+        {
+            Stopwatch timer = new Stopwatch();
+            timer.Start();
+            var rand = new Random();
+            var posMoves = new List<Tuple<int, int>>();
+            int depth = level;
+
+            for(int i = 0; i < 7; i++)
+            {
+                if(!GameBoard.DropPiece(i, board, turn))
+                {
+                    continue;
+                }
+                posMoves.Add(Tuple.Create(i, GameBoard.MiniMax(this.board, depth, false)));
+                GameBoard.UndoPiece(i, board);
+            }
+
+            //Finds moves with the highest score for AI
+            int maxScore = posMoves.Max(t => t.Item2);
+
+            //best possible moves from possible moves list
+            var best = posMoves.Where(t => t.Item2 == maxScore).ToList();
+            int column = best[rand.Next(0, best.Count)].Item1;
+            GameBoard.DropPiece(column, board, turn);
+            timer.Stop();
+            label3.Text = "Move complete in " + timer.Elapsed.Minutes.ToString() + " minutes and " + timer.Elapsed.Seconds.ToString() + " seconds";
+            AiMoveSelector(column);
+            
+        }
+
+        private void displayLastMove(int turn, int columnIndex)
+        {
+            string copy = label1.Text;
+            char last = copy[copy.Length - 1];
+            string player = (turn == 2) ? "red" : "Yellow";
+            label2.Text = player + "'s last move was column " + last;
+            player = (turn == 1) ? "red" : "Yellow";
+            label1.Text = player + "'s last move was column " + (columnIndex + 1);
+        }
+
+        private void AiMoveSelector(int column)
+        {
+            //level will come in as either 0 1 or 2, and will be used to determine
+            //depth of search in the min max algo
+            //Thread.Sleep(200);
+            int columnIndex, rowIndex;
+            columnIndex = column;
+            rowIndex = this.EmptyRow(columnIndex) + 1;
+            this.board[rowIndex, columnIndex] = this.turn;
+            MovePainter(rowIndex, columnIndex, turn);
+            displayLastMove(turn, columnIndex);
+            turnSelector(turn);
+
+        }
+
+        private void turnSelector(int turn) //This method selects whos turn it is to go
+        {
+            if (turn == 1) this.turn = 2;
+            else this.turn = 1;
+        }
+
+        public void MovePainter(int rowIndex, int columnIndex, int turn)
+        {
+            Graphics g = this.CreateGraphics();
+            if (turn == 0)
+                g.FillEllipse(Brushes.DarkGray, 32 + 48 * columnIndex, 32 + 48 * rowIndex, 32, 32);
+
+            else if (turn == 1)
+                g.FillEllipse(Brushes.Red, 32 + 48 * columnIndex, 32 + 48 * rowIndex, 32, 32);
+            else
+                g.FillEllipse(Brushes.Yellow, 32 + 48 * columnIndex, 32 + 48 * rowIndex, 32, 32);
+            int winner = this.WinnerPlayer(this.turn);
+            if (winner != -1)
+                displayWinner(winner);
+        }
+
+        private void displayWinner(int winner) //This is where the finished game will tell the player the game is over
+        {
+            string winningPlayer = (winner == 1) ? "red" : "Yellow";
+            MessageBox.Show(winningPlayer + " player has won");
+            Application.Restart();
+        }
+
+        private int WinnerPlayer(int playerToCheck)
+        {
+            //vertical
+            for (int row = 0; row < this.board.GetLength(0) - 3; row++)
+            {
+                for (int col = 0; col < this.board.GetLength(1); col++)
+                {
+                    if (this.AllNumbersEqual(playerToCheck, this.board[row, col], this.board[row + 1, col], this.board[row + 2, col], this.board[row + 3, col]))
+                        return playerToCheck;
+                }
+            }
+            //horizontal
+            for (int row = 0; row < this.board.GetLength(0); row++)
+            {
+                for (int col = 0; col < this.board.GetLength(1) - 3; col++)
+                {
+                    if (this.AllNumbersEqual(playerToCheck, this.board[row, col], this.board[row, col + 1], this.board[row, col + 2], this.board[row, col + 3]))
+                        return playerToCheck;
+                }
+            }
+            //left diagonal (\)
+            for (int row = 0; row < this.board.GetLength(0) - 3; row++)
+            {
+                for (int col = 0; col < this.board.GetLength(1) - 3; col++)
+                {
+                    if (this.AllNumbersEqual(playerToCheck, this.board[row, col], this.board[row + 1, col + 1], this.board[row + 2, col + 2], this.board[row + 3, col + 3]))
+                        return playerToCheck;
+                }
+            }
+            //right diagonal (/)
+            for (int row = 0; row < this.board.GetLength(0) - 3; row++)
+            {
+                for (int col = 3; col < this.board.GetLength(1); col++)
+                {
+                    if (this.AllNumbersEqual(playerToCheck, this.board[row, col], this.board[row + 1, col - 1], this.board[row + 2, col - 2], this.board[row + 3, col - 3]))
+                        return playerToCheck;
+                }
+            }
+            return -1;
+        }
+
+        private bool AllNumbersEqual(int toCheck, params int[] numbers)
+        {
+            foreach (int num in numbers)
+            {
+                if (num != toCheck) return false;
+            }
+            return true;
+        }
+
+        private int ColumnNumber(Point mouse)
+        {
+            for (int i = 0; i < this.boardColumns.Length; i++)
+            {
+                if ((mouse.X >= this.boardColumns[i].X) && (mouse.Y >= this.boardColumns[i].Y))
+                {
+                    if ((mouse.X <= this.boardColumns[i].X + this.boardColumns[i].Width) && (mouse.Y <= this.boardColumns[i].Y + this.boardColumns[i].Height))
+                        return i;
+                }
+            }
+            return -1;
+        }
+
+        public int EmptyRow(int col)
+        {
+            for (int i = 5; i >= 0; i--)
+            {
+                if (this.board[i, col] == 0)
+                    return i;
+            }
+            return -1;
+        }
+
+        private void modeToolStripMenuItem_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            modeToolStripMenuItem.Enabled = false;               
+            mode = modeToolStripMenuItem.SelectedIndex;
+            if (mode == 0)
+            {
+                levelToolStripMenuItem.Enabled = false;
+                elementToolStripComboBox.Enabled = false;
+            }
+        }
+
+        private void levelToolStripMenuItem_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            levelToolStripMenuItem.Enabled = false;
+            int templvl = levelToolStripMenuItem.SelectedIndex;
+            level = (templvl * 2) + 2;
+        }
+
+        private void resetToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            Application.Restart();
+        }
+
+        private void undoToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            
+            Graphics g = this.CreateGraphics();
+            int columnIndex, rowIndex;
+            char lastone = '0', lasttwo = '0';
+            string last1 = label1.Text;
+            lastone = last1[last1.Length - 1];
+            string last2 = label2.Text;
+            lasttwo = last2[last2.Length - 1];
+            if (lastone == '0')
+            {
+                MessageBox.Show("Can only undo once");
+            }
+            else
+            {
+                if (turn == 1)
+                {
+                    if (mode == 0)
+                    {
+                        columnIndex = lastone - '1';
+                        rowIndex = EmptyRow(columnIndex);
+                        rowIndex = rowIndex + 1;
+                        this.board[rowIndex, columnIndex] = 0;
+                        g.FillEllipse(Brushes.DarkGray, 32 + 48 * columnIndex, 32 + 48 * rowIndex, 32, 32);
+                        columnIndex = lasttwo - '1';
+                    }
+                    else
+                    {
+                        columnIndex = lastone - '1';
+                        rowIndex = EmptyRow(columnIndex);
+                        rowIndex = rowIndex + 1;
+                        this.board[rowIndex, columnIndex] = 0;
+                        g.FillEllipse(Brushes.DarkGray, 32 + 48 * columnIndex, 32 + 48 * rowIndex, 32, 32);
+                        columnIndex = lasttwo - '1';
+                        rowIndex = EmptyRow(columnIndex);
+                        rowIndex = rowIndex + 1;
+                        this.board[rowIndex, columnIndex] = 0;
+                        g.FillEllipse(Brushes.DarkGray, 32 + 48 * columnIndex, 32 + 48 * rowIndex, 32, 32);
+                    }
+                }
+                else
+                {
+                    columnIndex = lastone - '1';
+                    rowIndex = EmptyRow(columnIndex);
+                    rowIndex = rowIndex + 1;
+                    this.board[rowIndex, columnIndex] = 0;
+                    g.FillEllipse(Brushes.DarkGray, 32 + 48 * columnIndex, 32 + 48 * rowIndex, 32, 32);
+                }
+            }
+            displayLastMove(1, -1);
+            displayLastMove(2, -1);
+        }
+
+        private void hintToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            //will be implemented with ai algo, 
+        }
+
+        private void modeToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void elementToolStripComboBox_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            elementToolStripComboBox.Enabled = false;
+            element = elementToolStripComboBox.SelectedIndex;
+        }
+
+    }
+    public class GameBoard
+    {
+        //place peice in the board in the chosen column
+        public bool DropPiece(int column, int[,] board, int playerID)
+        {
+            int row = 0;
+            int rowLength = board.GetLength(0);
+
+            while (row < rowLength - 1 && board[row, column] == 0)
+            {
+                row++;
+            }
+
+            if (row == 0)
+            {
+                return false;
+            }
+
+            //places piece above any existing piece
+            if (board[row, column] != 0)
+            {
+                row--;
+            }
+            board[row, column] = playerID;
+            
+            return true;
+        }
+
+        //undoes the insufficient move
+        public bool UndoPiece(int column, int[,] board)
+        {
+
+            int row = 0;
+            int rowLength = board.GetLength(0);
+
+            while (row < rowLength - 1 && board[row, column] == 0)
+            {
+                row++;
+            }
+
+            if (row == rowLength)
+            {
+                return false;
+            }
+
+            board[row, column] = 0;
+            return true;
+        }
+
+        //check for full board (tie condition)
+        public bool FullBoard(int[,] board)
+        {
+            int col = 7;
+            int row = 6;
+            int pieceCount = 0;
+            for (int i = 0; i < row; i++)
+            {
+                for (int j = 0; j < col; j++)
+                {
+                    if (board[i, j] != 0)
+                    {
+                        pieceCount++;
+                        if (pieceCount == 42)
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        //checks for win conditions
+        public int Win(int[,] board)
+        {
+            for (int i = 0; i < 6; i++)
+            {
+                for (int j = 0; j < 7; j++)
+                {
+                    //scores win for player
+                    if (board[i, j] == 1)
+                    {
+                        //horizontal winner
+                        try
+                        {
+                            if ((board[i, j] == board[i, j + 1] && board[i, j + 1] == board[i, j + 2] && board[i, j + 2] == board[i, j + 3]))
+                            {
+                                return -10;
+                            }
+                        }
+                        catch (IndexOutOfRangeException)
+                        {
+
+                        }
+                        try
+                        {
+                            if ((board[i, j] == board[i, j - 1] && board[i, j - 1] == board[i, j - 2] && board[i, j - 2] == board[i, j - 3]))
+                            {
+                                return -10;
+                            }
+                        }
+                        catch (IndexOutOfRangeException)
+                        {
+
+                        }
+
+                        //vertical winner
+                        try
+                        {
+                            if ((board[i, j] == board[i + 1, j] && board[i + 1, j] == board[i + 2, j] && board[i + 2, j] == board[i + 3, j]))
+                            {
+                                return -10;
+                            }
+                        }
+                        catch (IndexOutOfRangeException)
+                        {
+
+                        }
+                        try
+                        {
+                            if ((board[i, j] == board[i - 1, j] && board[i - 1, j] == board[i - 2, j] && board[i - 2, j] == board[i - 3, j]))
+                            {
+                                return -10;
+                            }
+                        }
+                        catch (IndexOutOfRangeException)
+                        {
+
+                        }
+
+                        //diagonal winner 
+                        try
+                        {
+                            //upward right diagonal
+                            if ((board[i, j] == board[i - 1, j + 1] && board[i - 1, j + 1] == board[i - 2, j + 2] && board[i - 2, j + 2] == board[i - 3, j + 3]))
+                            {
+                                return -10;
+                            }
+                        }
+                        catch (IndexOutOfRangeException)
+                        {
+
+                        }
+                        try
+                        {
+                            //downward left diagonal
+                            if ((board[i, j] == board[i + 1, j - 1] && board[i + 1, j - 1] == board[i + 2, j - 2] && board[i + 2, j - 2] == board[i + 3, j - 3]))
+                            {
+                                return -10;
+                            }
+                        }
+                        catch (IndexOutOfRangeException)
+                        {
+
+                        }
+
+                        //downward right diagonal
+                        try
+                        {
+                            if ((board[i, j] == board[i + 1, j + 1] && board[i + 1, j + 1] == board[i + 2, j + 2] && board[i + 2, j + 2] == board[i + 3, j + 3]))
+                            {
+                                return -10;
+                            }
+                        }
+                        catch (IndexOutOfRangeException)
+                        {
+
+                        }
+
+                        //upward left diagonal
+                        try
+                        {
+                            if ((board[i, j] == board[i - 1, j - 1] && board[i - 1, j - 1] == board[i - 2, j - 2] && board[i - 2, j - 2] == board[i - 3, j - 3]))
+                            {
+                                return -10;
+                            }
+                        }
+                        catch (IndexOutOfRangeException)
+                        {
+
+                        }
+                    }
+                    //scores win for ai
+                    if (board[i, j] == 2)
+                    {
+                        //horizontal winner
+                        try
+                        {
+                            if ((board[i, j] == board[i, j + 1] && board[i, j + 1] == board[i, j + 2] && board[i, j + 2] == board[i, j + 3]))
+                            {
+                                return +10;
+                            }
+                        }
+                        catch (IndexOutOfRangeException)
+                        {
+
+                        }
+                        try
+                        {
+                            if ((board[i, j] == board[i, j - 1] && board[i, j - 1] == board[i, j - 2] && board[i, j - 2] == board[i, j - 3]))
+                            {
+                                return +10;
+                            }
+                        }
+                        catch (IndexOutOfRangeException)
+                        {
+
+                        }
+
+                        //vertical winner
+                        try
+                        {
+                            if ((board[i, j] == board[i + 1, j] && board[i + 1, j] == board[i + 2, j] && board[i + 2, j] == board[i + 3, j]))
+                            {
+                                return +10;
+                            }
+                        }
+                        catch (IndexOutOfRangeException)
+                        {
+
+                        }
+                        try
+                        {
+                            if ((board[i, j] == board[i - 1, j] && board[i - 1, j] == board[i - 2, j] && board[i - 2, j] == board[i - 3, j]))
+                            {
+                                return +10;
+                            }
+                        }
+                        catch (IndexOutOfRangeException)
+                        {
+
+                        }
+
+                        //diagonal winner 
+                        try
+                        {
+                            //upward right diagonal
+                            if ((board[i, j] == board[i - 1, j + 1] && board[i - 1, j + 1] == board[i - 2, j + 2] && board[i - 2, j + 2] == board[i - 3, j + 3]))
+                            {
+                                return +10;
+                            }
+                        }
+                        catch (IndexOutOfRangeException)
+                        {
+
+                        }
+                        try
+                        {
+                            //downward left diagonal
+                            if ((board[i, j] == board[i + 1, j - 1] && board[i + 1, j - 1] == board[i + 2, j - 2] && board[i + 2, j - 2] == board[i + 3, j - 3]))
+                            {
+                                return +10;
+                            }
+                        }
+                        catch (IndexOutOfRangeException)
+                        {
+
+                        }
+
+                        //downward right diagonal
+                        try
+                        {
+                            if ((board[i, j] == board[i + 1, j + 1] && board[i + 1, j + 1] == board[i + 2, j + 2] && board[i + 2, j + 2] == board[i + 3, j + 3]))
+                            {
+                                return +10;
+                            }
+                        }
+                        catch (IndexOutOfRangeException)
+                        {
+
+                        }
+
+                        //upward left diagonal
+                        try
+                        {
+                            if ((board[i, j] == board[i - 1, j - 1] && board[i - 1, j - 1] == board[i - 2, j - 2] && board[i - 2, j - 2] == board[i - 3, j - 3]))
+                            {
+                                return +10;
+                            }
+                        }
+                        catch (IndexOutOfRangeException)
+                        {
+
+                        }
+                    }
+                }
+            }
+            return 0;
+        }
+
+        public int MiniMax(int[,] board, int depth, bool player)
+        {
+            if (depth == 0)
+            {
+                return 0;
+            }
+            int score = Win(board);
+
+            if (score == 10)
+            {
+                return score;
+            }
+            if (score == -10)
+            {
+                return score;
+            }
+            if (FullBoard(board))
+            {
+                return score;
+            }
+
+            int bestVal = player ? -1 : 1;
+
+            for (int i = 0; i < 7; i++)
+            {
+                if (!DropPiece(i, board, player ? 2 : 1))
+                {
+                    continue;
+                }
+                var instance = new GameForm();
+                int row = instance.EmptyRow(i);
+                var paint = new GameForm();
+                paint.MovePainter(row, i, player ? 2 : 1);
+                int v = MiniMax(board, depth - 1, !player);
+                bestVal = player ? Math.Max(bestVal, v) : Math.Min(bestVal, v);
+                UndoPiece(i, board);
+            }
+
+            return bestVal;
+
+        }
+    }
+}
+
+
+
+
