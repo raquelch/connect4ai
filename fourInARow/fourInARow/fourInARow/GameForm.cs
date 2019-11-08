@@ -253,7 +253,7 @@ namespace fourInARow
             level = (templvl * 2) + 2;
         }
 
-        private void resetToolStripMenuItem_Click(object sender, EventArgs e)
+        private void resetToolStripMenuItem_Click(object sender, EventArgs e) // This method restores the game to a blank game board so the game can be played again
         {
             Application.Restart();
         }
