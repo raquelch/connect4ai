@@ -1,0 +1,68 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Diagnostics;
+using System.Drawing;
+using System.Linq;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+namespace fourInARow
+{
+		//Specifications
+ public partial class GameForm : Form
+    {
+        Random rnd = new Random();
+        private Rectangle[] boardColumns;
+        public const int width = 7;
+        public const int height = 6;
+        private int[,] board;
+        private int turn;
+        private int level = 4;
+        private int mode = 1;
+        private int element = 0;
+        public int aiColumn;
+        GameBoard GameBoard = new GameBoard();
+        
+		//Layout of board
+  public GameForm() 
+        {
+            InitializeComponent();
+            this.boardColumns = new Rectangle[7];
+            this.board = new int[6, 7];
+            this.turn = 1;
+        }
+
+		//What pieces will look like when selected
+ private void GameForm_Paint(object sender, PaintEventArgs e)
+        {
+            e.Graphics.FillRectangle(Brushes.Blue, 24, 24, 340, 300);
+            for (int i = 0; i < 6; i++)
+            {
+                for (int j = 0; j < 7; j++)
+                {
+                    if (i == 0) this.boardColumns[j] = new Rectangle(32 + 48 * j, 24, 40, 300);
+                    e.Graphics.FillEllipse(Brushes.DarkGray, 32 + 48 * j, 32 + 48 * i, 32, 32);
+                }
+            }
+        }
+
+		//Whos turn it is
+        private void GameForm_MouseClick(object sender, MouseEventArgs e)
+        {
+            int columnIndex = this.ColumnNumber(e.Location);
+            if (columnIndex >= 0 && columnIndex <= 6)
+            {
+                if (mode == 0)
+                    playerMove(columnIndex);
+                else
+                {
+                    playerMove(columnIndex);
+                    AlgoMove(turn);
+                }
+            }
+        }
+}
